@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:studentdb/Constant.dart';
+
+import '../Backend/classList.dart'; // Import your ClassService here
 
 class classList extends StatefulWidget {
   const classList({super.key});
@@ -12,6 +10,38 @@ class classList extends StatefulWidget {
 }
 
 class _ClassListPageState extends State<classList> {
+  final ClassService _classService = ClassService();
+
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController sectionController = TextEditingController();
+
+  List<Map<String, String>> _classes = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
+
+  Future<void> _loadClasses() async {
+    setState(() => _isLoading = true);
+    try {
+      final classData = await _classService.getClassesByTeacher();
+      setState(() {
+        _classes = classData.map<Map<String, String>>((cls) {
+          return {
+            'id': cls['_id'],
+            'name': "Class ${cls['name']} - Section ${cls['section']}"
+          };
+        }).toList();
+      });
+    } catch (e) {
+      _showSnackbar("Failed to load classes: $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -19,55 +49,24 @@ class _ClassListPageState extends State<classList> {
     );
   }
 
-  final List<String> _classes = [];
-
+  Future<void> _addClass(String name, String section) async {
+    try {
+      bool success = await _classService.addClass(name, section);
+      if (success) {
+        await _loadClasses();
+        Navigator.pop(context); // Close the dialog
+        _showSnackbar("Class added successfully");
+        nameController.clear();
+        sectionController.clear();
+      } else {
+        _showSnackbar("Failed to add class");
+      }
+    } catch (e) {
+      _showSnackbar("Error adding class: $e");
+    }
+  }
 
   void _showAddClassDialog() {
-    final nameController = TextEditingController();
-    final sectionController = TextEditingController();
-
-    String baseUrl = "${baseUrlMain}/class/add";
-
-    Future<void> addClass() async {
-      final className = nameController.text.trim();
-      final section = sectionController.text.trim();
-
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? teacherId = prefs.getString('teacherId');
-
-      if (className.isEmpty || section.isEmpty || teacherId == null) {
-        _showSnackbar("Please fill all fields and ensure you're logged in.");
-        return;
-      }
-
-      try {
-        print("Sending: { name: $className, section: $section, teacherId: $teacherId }");
-        final response = await http.post(
-          Uri.parse(baseUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'name': className,
-            'section': section,
-            'teacherId': teacherId,
-          }),
-        );
-
-        if (response.statusCode == 200) {
-          final newClass = "Class $className - Section $section";
-          setState(() {
-            _classes.add(newClass);
-          });
-          Navigator.pop(context);
-          _showSnackbar("Class $className added successfully");
-        } else {
-          _showSnackbar("Failed to add class. Status: ${response.statusCode}");
-        }
-      } catch (error) {
-        _showSnackbar("Error occurred: $error");
-      }
-    }
-
-
     showDialog(
       context: context,
       builder: (context) {
@@ -95,14 +94,27 @@ class _ClassListPageState extends State<classList> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                nameController.clear();
+                sectionController.clear();
+                Navigator.pop(context);
+              },
               child: const Text("Cancel"),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
               ),
-              onPressed: addClass,
+              onPressed: () {
+                final name = nameController.text.trim();
+                final section = sectionController.text.trim();
+
+                if (name.isEmpty || section.isEmpty) {
+                  _showSnackbar("Please fill all fields");
+                  return;
+                }
+                _addClass(name, section);
+              },
               child: const Text("Add"),
             ),
           ],
@@ -111,7 +123,7 @@ class _ClassListPageState extends State<classList> {
     );
   }
 
-  Widget _buildClassCard(String className) {
+  Widget _buildClassCard(Map<String, String> classInfo) {
     return Card(
       elevation: 3,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -120,7 +132,7 @@ class _ClassListPageState extends State<classList> {
         contentPadding: const EdgeInsets.all(16),
         tileColor: Colors.teal.shade50,
         title: Text(
-          className,
+          classInfo['name'] ?? '',
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.teal,
@@ -129,7 +141,7 @@ class _ClassListPageState extends State<classList> {
         ),
         trailing: const Icon(Icons.arrow_forward_ios, color: Colors.teal),
         onTap: () {
-          // Navigate to class detail page if needed
+          Navigator.pushNamed(context, '/studentList');
         },
       ),
     );
@@ -143,7 +155,9 @@ class _ClassListPageState extends State<classList> {
         centerTitle: true,
         backgroundColor: Colors.teal,
       ),
-      body: _classes.isEmpty
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _classes.isEmpty
           ? const Center(
         child: Text(
           "No classes added yet.",

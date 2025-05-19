@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../Backend/studentAuth.dart';
+
 class studentLogin extends StatefulWidget {
   const studentLogin({super.key});
 
@@ -12,7 +14,11 @@ class studentLogin extends StatefulWidget {
 class _StudentLoginState extends State<studentLogin> {
   final TextEditingController studentIdController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final StudentAuthService authService = StudentAuthService();
+
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
 
   @override
   void dispose() {
@@ -27,37 +33,34 @@ class _StudentLoginState extends State<studentLogin> {
     );
   }
 
-  String baseUrl = 'http://192.168.236.212:3000/API/student/login';
-
   Future<void> _login() async {
-    try {
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'studentId': studentIdController.text.trim(),
-          'password': passwordController.text.trim(),
-        }),
-      );
+    final studentId = studentIdController.text.trim();
+    final password = passwordController.text.trim();
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
+    if (studentId.isEmpty || password.isEmpty) {
+      _showSnackbar("Please enter both Student ID and Password.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final result = await authService.loginStudent(studentId, password);
+
+      if (result['success'] == true) {
         _showSnackbar("Login Successful");
-        print("Response: $responseData");
 
         Future.delayed(const Duration(seconds: 1), () {
           Navigator.pushReplacementNamed(context, '/studentScreen');
         });
       } else {
-        final responseData = jsonDecode(response.body);
-        _showSnackbar("Login failed: ${responseData['message']}");
-        print("Login failed with status: ${response.statusCode}");
+        _showSnackbar("Login failed. Please check your credentials.");
       }
-    } catch (error) {
+    } catch (e) {
       _showSnackbar("Something went wrong. Try again later.");
-      print("Error: $error");
+      print("Login error: $e");
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -123,7 +126,7 @@ class _StudentLoginState extends State<studentLogin> {
               SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _login,
+                  onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryColor,
                     foregroundColor: Colors.white,

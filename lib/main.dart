@@ -7,6 +7,7 @@ import 'package:studentdb/userSelectionScreen.dart';
 
 import 'Student/studentSignUp.dart';
 import 'Teachers/classList.dart';
+import 'Teachers/studentList.dart';
 import 'Teachers/teacherLogin.dart';
 
 
@@ -30,8 +31,11 @@ class MyApp extends StatelessWidget {
         '/teacherLogin': (context) => const teacherLogin(),
         '/classList': (context) => const classList(),
         '/studentLogin': (context) => const studentLogin(),
-        '/studentScreen': (context) => const studentScreen(),
+        '/studentScreen': (context) => const StudentScreen(),
+        '/studentList': (context) => const StudentList()
       },
+
+
       theme: ThemeData(
         brightness: Brightness.light,
         primarySwatch: Colors.teal,

@@ -6,8 +6,8 @@ import 'package:studentdb/Constant.dart';
 class ClassService {
   final TeacherAuthService _authService = TeacherAuthService();
 
-  // Fetch classes for logged-in teacher
-  Future<List<dynamic>> getClassesByTeacher() async {
+  // ✅ Fetch classes by teacher
+  Future<List<Map<String, dynamic>>> getClassesByTeacher() async {
     final teacherId = await _authService.getTeacherId();
     if (teacherId == null) throw Exception("Teacher ID not found");
 
@@ -24,26 +24,35 @@ class ClassService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['_class'] ?? [];
+      final classList = List<Map<String, dynamic>>.from(data['_class']);
+      return classList;
     } else {
       throw Exception('Failed to fetch classes');
     }
   }
 
-  // Add new class
+  // ✅ Add new class
   Future<bool> addClass(String name, String section) async {
-    final url = Uri.parse('$baseUrlMain/class/add');
-    final token = await _authService.getToken();
+    final teacherId = await _authService.getTeacherId();
+    if (teacherId == null) throw Exception("Teacher ID not found");
 
+    final url = Uri.parse('$baseUrlMain/class/add');
     final response = await http.post(
       url,
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer $token"
       },
-      body: jsonEncode({"name": name, "section": section}),
+      body: jsonEncode({
+        "name": name,
+        "section": section,
+        "teacherId": teacherId
+      }),
     );
 
-    return response.statusCode == 200;
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      return false;
+    }
   }
 }

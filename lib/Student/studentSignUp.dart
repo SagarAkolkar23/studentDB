@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../Backend/studentAuth.dart';
+
 class studentSignUp extends StatefulWidget {
   const studentSignUp({super.key});
 
@@ -14,49 +16,71 @@ class _StudentSignUpState extends State<studentSignUp> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController = TextEditingController();
+  final StudentAuthService _authService = StudentAuthService();
+
+
+  bool _isLoading = false;
+
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
   }
-
-  String baseUrl = 'http://192.168.80.212:3000/API/student/register';
-
   Future<void> _registerStudent() async {
-    if (passwordController.text != confirmPasswordController.text) {
-      _showSnackbar("Passwords do not match");
+    final studentId = studentIdController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+    final confirmPassword = confirmPasswordController.text.trim();
+
+    // Basic validations...
+    if (studentId.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      _showSnackbar("Please fill in all fields.");
       return;
     }
 
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(email)) {
+      _showSnackbar("Please enter a valid email address.");
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showSnackbar("Passwords do not match.");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      final response = await http.post(
-        Uri.parse(baseUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'studentId': studentIdController.text.trim(),
-          'email': emailController.text.trim(),
-          'password': passwordController.text.trim(),
-        }),
+      // Call the service here
+      final result = await _authService.register(
+        studentId: studentId,
+        email: email,
+        password: password,
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        _showSnackbar("Registered Successfully 🎉");
-        print("Response: $data");
-        Navigator.pushReplacementNamed(context, '/studentLogin');
+      if (result['success']) {
+        _showSnackbar(result['message'] ?? "Registration successful!");
+        Future.delayed(const Duration(seconds: 1), () {
+          Navigator.pushReplacementNamed(context, '/studentLogin');
+        });
       } else {
-        final error = jsonDecode(response.body);
-        _showSnackbar("${error['message'] ?? 'Registration failed'}");
-        print("Failed: ${response.statusCode} ${response.body}");
+        _showSnackbar(result['message'] ?? "Registration failed");
       }
     } catch (e) {
-      print("Exception: $e");
-      _showSnackbar("Error connecting to server");
+      _showSnackbar("An error occurred, please try again.");
+      print("Register error: $e");
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+
+
 
   @override
   void dispose() {
@@ -121,7 +145,7 @@ class _StudentSignUpState extends State<studentSignUp> {
             SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: _registerStudent,
+                onPressed: _isLoading ? null : _registerStudent,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.primaryColor,
                   foregroundColor: Colors.white,
