@@ -55,4 +55,48 @@ class ClassService {
       return false;
     }
   }
+
+  // ✅ Fetch subjects for a class
+  Future<List<String>> getSubjectsForClass(String classId) async {
+    final url = Uri.parse('$baseUrlMain/subject/$classId/subjects');
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final subjects = List<String>.from(data['subjects']);
+      return subjects;
+    } else {
+      throw Exception('Failed to fetch subjects for class');
+    }
+  }
+
+  // ✅ Add or update subjects for a class
+  Future<bool> addSubjectsToClass(String classId, List<String> subjects) async {
+    final url = Uri.parse('$baseUrlMain/subject/$classId/subjects');
+
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "subjects": subjects,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      print("Error: ${response.body}");
+      return false;
+    }
+  }
+
+
 }
